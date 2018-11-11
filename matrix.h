@@ -1,7 +1,7 @@
 #ifndef MATRIX_H
 #define MATRIX_H
 
-#include <unordered_map>
+#include <map>
 #include <memory>
 
 namespace matrix
@@ -36,8 +36,49 @@ struct Node
         return result;
     }
 
+    //template<size_t Deep>
+    Node<T,0>* begin()
+    {
+        //static_assert(Deep <= D, "");
+//        if(D == 0)
+//        {
+//            if(!children.empty() )
+//            {
+//                return children.begin()->second.get();
+//            }
+//        }
+//        else
+//        {
+            if(!children.empty() )
+            {
+                return children.begin()->second->begin();
+            }
+//        }
+        return nullptr;
+    }
+
+    Node<T,D>* next()
+    {
+        if(parent)
+        {
+            std::map<size_t, std::shared_ptr<Node<T,D>> >& brothers = parent->children;
+            auto lb = brothers.upper_bound(ind);
+            if(lb != brothers.end() )
+                return lb->second.get();
+            else
+            {
+                Node<T,D+1>* nextPa = parent->next();
+                if(nextPa && nextPa->children.size() > 0)
+                {
+                    return nextPa->children.begin()->second.get();
+                }
+            }
+        }
+        return nullptr;
+    }
+
     size_t ind = 0;
-    std::unordered_map<size_t, std::shared_ptr<Node<T, D-1>> > children;
+    std::map<size_t, std::shared_ptr<Node<T, D-1>> > children;
     Node<T,D+1>* parent = nullptr;
 };
 
@@ -54,6 +95,31 @@ struct Node<T, 0>
 
     Node(const T& val):value(val){}
 
+    Node<T,0>* next()
+    {
+        if(parent)
+        {
+            std::map<size_t, std::shared_ptr<Node<T,0>> >& brothers = parent->children;
+            auto lb = brothers.upper_bound(ind);
+            if(lb != brothers.end() )
+                return lb->second.get();
+            else
+            {
+                Node<T,1>* nextPa = parent->next();
+                if(nextPa && nextPa->children.size() > 0)
+                {
+                    return nextPa->children.begin()->second.get();
+                }
+            }
+        }
+        return nullptr;
+    }
+
+    Node<T,0>* begin()
+    {
+        return this;
+    }
+
     size_t size() const {return 1;}
 
     size_t ind = 0;
@@ -64,47 +130,47 @@ struct Node<T, 0>
 template<class T, size_t D>
 using NodeSh = std::shared_ptr<internal::Node<T,D>>;
 
-//template<class T, size_t D>
-//struct MatrixIterator
-//{
-//    typedef std::bidirectional_iterator_tag iterator_category;
+template<class T, size_t D>
+struct MatrixIterator
+{
+    typedef std::bidirectional_iterator_tag iterator_category;
 
-//    MatrixIterator() = default;
+    MatrixIterator() = default;
 
-//    explicit MatrixIterator(Node<* node) noexcept
-//        : node(node) { }
+    explicit MatrixIterator(Node<T,0>* node) noexcept
+        : node(node) { }
 
-//    T& operator*() const noexcept
-//    {
-//        return static_cast<Node<T>*>(node)->value;
-//    }
+    T& operator*() const noexcept
+    {
+        return node->value;
+    }
 
-//    T* operator->() const noexcept
-//    {
-//        return &(static_cast<Node<T>*>(node)->value);
-//    }
+    T* operator->() const noexcept
+    {
+        return &(node->value);
+    }
 
-//    SListIterator& operator++() noexcept
-//    {
-//        node = node->next;
-//        return *this;
-//    }
+    MatrixIterator& operator++() noexcept
+    {
+        node = node->next();
+        return *this;
+    }
 
-//    SListIterator operator++(int) noexcept
-//    {
-//        SListIterator tmp = *this;
-//        node = node->next;
-//        return tmp;
-//    }
+    MatrixIterator operator++(int) noexcept
+    {
+        MatrixIterator tmp = *this;
+        node = node->next();
+        return tmp;
+    }
 
-//    bool operator==(const SListIterator& rhs) const noexcept
-//    { return node == rhs.node; }
+    bool operator==(const MatrixIterator& rhs) const noexcept
+    { return node == rhs.node; }
 
-//    bool operator!=(const SListIterator& rhs) const noexcept
-//    { return node != rhs.node; }
+    bool operator!=(const MatrixIterator& rhs) const noexcept
+    { return node != rhs.node; }
 
-//    BaseNode* node;
-//};
+    Node<T,0>* node;
+};
 
 }
 
@@ -136,6 +202,19 @@ public:
         }
     }
 
+    internal::MatrixIterator<T,D> begin()
+    {
+        if(m_node)
+            return internal::MatrixIterator<T,D>(m_node->begin() );
+        else
+            return internal::MatrixIterator<T,D>();
+    }
+
+    internal::MatrixIterator<T,D> end()
+    {
+        return internal::MatrixIterator<T,D>();
+    }
+
     size_t size() const
     {
         return m_node->size();
@@ -162,6 +241,19 @@ public:
         for(const auto& node : rhs.m_node->children)
             m_node->children.emplace(node.first,
                             std::make_shared<internal::Node<T,0>>(*node.second) );
+    }
+
+    internal::MatrixIterator<T,1> begin()
+    {
+        if(m_node)
+            return internal::MatrixIterator<T,1>(m_node->begin() );
+        else
+            return internal::MatrixIterator<T,1>();
+    }
+
+    internal::MatrixIterator<T,1> end()
+    {
+        return internal::MatrixIterator<T,1>();
     }
 
     Matrix<T,0, DefaultValue> operator[](size_t ind)
@@ -197,6 +289,22 @@ public:
     Matrix(const T& v)
     {
         m_node = std::make_shared<internal::Node<T,0>>(v);
+    }
+
+    internal::MatrixIterator<T,0> begin()
+    {
+        if(m_node)
+        {
+            internal::Node<T,0>* n = m_node->begin();
+            return internal::MatrixIterator<T,0>(n);
+        }
+        else
+            return internal::MatrixIterator<T,0>();
+    }
+
+    internal::MatrixIterator<T,0> end()
+    {
+        return internal::MatrixIterator<T,0>();
     }
 
     template<class U, size_t D, T Default>

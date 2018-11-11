@@ -99,3 +99,25 @@ TEST(MATRIX_TEST, two_dimensional_test)
     ASSERT_EQ(matrix[100][100], 8);
     ASSERT_EQ(matrix.size(), 1);
 }
+
+TEST(MATRIX_TEST, iterator_test)
+{
+    matrix::Matrix<int,1> odmatrix;
+    odmatrix[1] = 5;
+    odmatrix[8] = 4;
+    odmatrix[2] = 9;
+    odmatrix[3] = 0;
+
+    auto itr = odmatrix.begin();
+    auto end = odmatrix.end();
+    ASSERT_NE(itr, end);
+    std::set<int> vals;
+//    while(itr != end)
+//    {
+        vals.insert(*itr);
+//        ++itr;
+//    }
+    ASSERT_TRUE(vals.find(5) != vals.end() );
+//    ASSERT_TRUE(vals.find(4) != vals.end() );
+//    ASSERT_TRUE(vals.find(9) != vals.end() );
+}
