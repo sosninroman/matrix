@@ -34,9 +34,14 @@ struct BaseNode
             else
             {
                 BaseNode* nextPa = parent->next();
-                if(nextPa && !nextPa->children.empty() )
+                if(nextPa)
                 {
-                    return nextPa->children.begin()->second.get();
+                    while(nextPa && nextPa->children.empty() )
+                        nextPa = nextPa->next();
+                    if(nextPa && !nextPa->children.empty() )
+                    {
+                        return nextPa->children.begin()->second.get();
+                    }
                 }
             }
         }
@@ -55,7 +60,6 @@ template<class T, size_t D>
 struct Node : public BaseNode<T>
 {
     Node() = default;
-    //explicit Node(size_t ind, Node<T,D+1>* parent = nullptr): BaseNode<T>::ind(ind), BaseNode<T>::parent(parent){}
     explicit Node(size_t ind, Node<T,D+1>* parent = nullptr): BaseNode<T>(ind, parent){}
 
     Node(const Node& rhs, Node<T,D+1>* parent = nullptr):
@@ -85,28 +89,6 @@ struct Node : public BaseNode<T>
         return nullptr;
     }
 
-//    Node<T,D>* next()
-//    {
-//        if(parent)
-//        {
-//            std::map<size_t, std::shared_ptr<Node<T,D>> >& brothers = parent->children;
-//            auto lb = brothers.upper_bound(ind);
-//            if(lb != brothers.end() )
-//                return lb->second.get();
-//            else
-//            {
-//                Node<T,D+1>* nextPa = parent->next();
-//                if(nextPa && nextPa->children.size() > 0)
-//                {
-//                    return nextPa->children.begin()->second.get();
-//                }
-//            }
-//        }
-//        return nullptr;
-//    }
-
-    //size_t ind = 0;
-    //std::map<size_t, std::shared_ptr<Node<T, D-1>> > children;
     Node<T,D+1>* parent = nullptr;
 };
 
@@ -123,26 +105,6 @@ struct Node<T, 0> : public BaseNode<T>
 
     Node(const T& val):value(val){}
 
-//    Node<T,0>* next()
-//    {
-//        if(parent)
-//        {
-//            std::map<size_t, std::shared_ptr<Node<T,0>> >& brothers = parent->children;
-//            auto lb = brothers.upper_bound(ind);
-//            if(lb != brothers.end() )
-//                return lb->second.get();
-//            else
-//            {
-//                Node<T,1>* nextPa = parent->next();
-//                if(nextPa && nextPa->children.size() > 0)
-//                {
-//                    return nextPa->children.begin()->second.get();
-//                }
-//            }
-//        }
-//        return nullptr;
-//    }
-
     Node<T,0>* begin() override
     {
         return this;
@@ -150,9 +112,7 @@ struct Node<T, 0> : public BaseNode<T>
 
     size_t size() const override {return 1;}
 
-    //size_t ind = 0;
     T value;
-    //Node<T,1>* parent = nullptr;
 };
 
 template<class T, size_t D>
@@ -225,8 +185,6 @@ public:
            return Matrix<T,D-1,DefaultValue>(std::dynamic_pointer_cast<internal::Node<T,D-1>>(itr->second) );
         else
         {
-//            m_node->children.emplace(ind, std::make_shared<internal::Node<T,D-1>>(ind, m_node.get() ) );
-//            return Matrix<T, D-1, DefaultValue>(m_node->children[ind]);
             auto ptr = std::make_shared<internal::Node<T,D-1>>(ind, m_node.get() );
             m_node->children.emplace(ind,ptr);
             return Matrix<T, D-1, DefaultValue>(ptr);
@@ -271,8 +229,7 @@ public:
     {
         for(const auto& node : rhs.m_node->children)
             m_node->children.emplace(node.first,
-                            //std::make_shared<internal::Node<T,0>>(*node.second) );
-           std::make_shared<internal::Node<T,0>>(*std::dynamic_pointer_cast<internal::Node<T,0>>(node.second) ) );
+                std::make_shared<internal::Node<T,0>>(*std::dynamic_pointer_cast<internal::Node<T,0>>(node.second) ) );
     }
 
     internal::MatrixIterator<T,1> begin()
@@ -400,7 +357,6 @@ private:
     {}
 
     size_t m_ind = 0;
-    //internal::Node<T,1>* m_parent = nullptr;
     internal::BaseNode<T>* m_parent = nullptr;
     NodeSh m_node = nullptr;
 };
