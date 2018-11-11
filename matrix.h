@@ -3,6 +3,8 @@
 
 #include <map>
 #include <memory>
+#include <cassert>
+#include <tuple>
 
 namespace matrix
 {
@@ -11,6 +13,18 @@ class Matrix;
 
 namespace internal
 {
+
+template <class T, std::size_t N, std::size_t... Is>
+auto unpack_impl(std::array<T, N> &arr, std::index_sequence<Is...>)
+{
+    return std::tie(arr[Is]... );
+}
+
+template <class T, std::size_t N>
+auto unpack(std::array<T, N> &arr)
+{
+    return unpack_impl(arr, std::make_index_sequence<N>{});
+}
 
 template<class T, size_t D>
 struct Node;
@@ -126,11 +140,37 @@ struct MatrixIterator
     MatrixIterator() = default;
 
     explicit MatrixIterator(Node<T,0>* node) noexcept
-        : node(node) { }
-
-    T& operator*() const noexcept
+        : node(node)
     {
-        return node->value;
+        recalcPosition();
+    }
+
+    void recalcPosition()
+    {
+        if(node)
+        {
+            BaseNode<T>* ptr = node;
+            for(int i = 0; i < D; ++i)
+            {
+                assert(ptr);
+                position[i] = ptr->ind;
+                ptr = ptr->parent;
+            }
+        }
+        else
+        {
+            for(int i = 0; i < D; ++i)
+            {
+                position[i] = 0;
+            }
+        }
+    }
+
+    //T& operator*() const noexcept
+    auto operator*() const noexcept
+    {
+        //return node->value;
+        return std::tuple_cat(unpack(position), std::tie(node->value));
     }
 
     T* operator->() const noexcept
@@ -141,6 +181,7 @@ struct MatrixIterator
     MatrixIterator& operator++() noexcept
     {
         node = static_cast<Node<T,0>*>(node->next() );
+        recalcPosition();
         return *this;
     }
 
@@ -148,7 +189,15 @@ struct MatrixIterator
     {
         MatrixIterator tmp = *this;
         node = node->next();
+        recalcPosition();
         return tmp;
+    }
+
+    template<class... Args>
+    operator std::tuple<Args...>()
+    {
+
+        return std::tuple_cat(unpack(position), std::tie(node->value));
     }
 
     bool operator==(const MatrixIterator& rhs) const noexcept
@@ -158,6 +207,7 @@ struct MatrixIterator
     { return node != rhs.node; }
 
     Node<T,0>* node;
+    mutable std::array<int, D> position;
 };
 
 }

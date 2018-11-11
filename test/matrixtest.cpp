@@ -114,11 +114,23 @@ TEST(MATRIX_TEST, iterator_test)
     std::set<int> vals;
     while(itr != end)
     {
-        vals.insert(*itr);
+        vals.insert(std::get<1>(*itr) );
         ++itr;
     }
     ASSERT_TRUE(vals.find(5) != vals.end() );
     ASSERT_TRUE(vals.find(4) != vals.end() );
     ASSERT_TRUE(vals.find(9) != vals.end() );
     ASSERT_TRUE(vals.find(0) == vals.end() );
+
+    int p, v;
+    std::tie(p,v) = odmatrix.begin();
+    ASSERT_EQ(p,1);
+    ASSERT_EQ(v,5);
+
+    for(auto c : odmatrix)
+    {
+        int x,v;
+        std::tie(x,v) = c;
+        int i = 1;
+    }
 }
