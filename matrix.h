@@ -13,118 +13,146 @@ namespace internal
 {
 
 template<class T, size_t D>
-struct Node
+struct Node;
+
+template<class T>
+struct BaseNode
+{
+    BaseNode() = default;
+    BaseNode(size_t ind, BaseNode* p):ind(ind), parent(p){}
+
+    virtual ~BaseNode() = default;
+
+    BaseNode* next()
+    {
+        if(parent)
+        {
+            std::map<size_t, std::shared_ptr<BaseNode>>& brothers = parent->children;
+            auto lb = brothers.upper_bound(ind);
+            if(lb != brothers.end() )
+                return lb->second.get();
+            else
+            {
+                BaseNode* nextPa = parent->next();
+                if(nextPa && !nextPa->children.empty() )
+                {
+                    return nextPa->children.begin()->second.get();
+                }
+            }
+        }
+        return nullptr;
+    }
+
+    virtual size_t size() const = 0;
+    virtual Node<T,0>* begin() = 0;
+
+    size_t ind;
+    BaseNode* parent = nullptr;
+    std::map<size_t, std::shared_ptr<BaseNode>> children;
+};
+
+template<class T, size_t D>
+struct Node : public BaseNode<T>
 {
     Node() = default;
-    explicit Node(size_t ind, Node<T,D+1>* parent = nullptr):ind(ind), parent(parent){}
+    //explicit Node(size_t ind, Node<T,D+1>* parent = nullptr): BaseNode<T>::ind(ind), BaseNode<T>::parent(parent){}
+    explicit Node(size_t ind, Node<T,D+1>* parent = nullptr): BaseNode<T>(ind, parent){}
 
     Node(const Node& rhs, Node<T,D+1>* parent = nullptr):
-        ind(ind), parent(parent)
+        BaseNode<T>::ind(rhs.ind), BaseNode<T>::parent(parent)
     {
         for(const auto& child : rhs.children)
         {
             auto node = std::make_shared<Node<T, D-1>>(&child.second, this);
-            children.emplace(child.first, std::move(node) );
+            BaseNode<T>::children.emplace(child.first, std::move(node) );
         }
     }
 
-    size_t size() const
+    size_t size() const override
     {
         size_t result = 0;
-        for(const auto& child : children)
+        for(const auto& child : BaseNode<T>::children)
             result += child.second->size();
         return result;
     }
 
-    //template<size_t Deep>
-    Node<T,0>* begin()
+    Node<T,0>* begin() override
     {
-        //static_assert(Deep <= D, "");
-//        if(D == 0)
-//        {
-//            if(!children.empty() )
-//            {
-//                return children.begin()->second.get();
-//            }
-//        }
-//        else
-//        {
-            if(!children.empty() )
-            {
-                return children.begin()->second->begin();
-            }
-//        }
-        return nullptr;
-    }
-
-    Node<T,D>* next()
-    {
-        if(parent)
+        if(!BaseNode<T>::children.empty() )
         {
-            std::map<size_t, std::shared_ptr<Node<T,D>> >& brothers = parent->children;
-            auto lb = brothers.upper_bound(ind);
-            if(lb != brothers.end() )
-                return lb->second.get();
-            else
-            {
-                Node<T,D+1>* nextPa = parent->next();
-                if(nextPa && nextPa->children.size() > 0)
-                {
-                    return nextPa->children.begin()->second.get();
-                }
-            }
+            return BaseNode<T>::children.begin()->second->begin();
         }
         return nullptr;
     }
 
-    size_t ind = 0;
-    std::map<size_t, std::shared_ptr<Node<T, D-1>> > children;
+//    Node<T,D>* next()
+//    {
+//        if(parent)
+//        {
+//            std::map<size_t, std::shared_ptr<Node<T,D>> >& brothers = parent->children;
+//            auto lb = brothers.upper_bound(ind);
+//            if(lb != brothers.end() )
+//                return lb->second.get();
+//            else
+//            {
+//                Node<T,D+1>* nextPa = parent->next();
+//                if(nextPa && nextPa->children.size() > 0)
+//                {
+//                    return nextPa->children.begin()->second.get();
+//                }
+//            }
+//        }
+//        return nullptr;
+//    }
+
+    //size_t ind = 0;
+    //std::map<size_t, std::shared_ptr<Node<T, D-1>> > children;
     Node<T,D+1>* parent = nullptr;
 };
 
 template<class T>
-struct Node<T, 0>
+struct Node<T, 0> : public BaseNode<T>
 {
     Node() = default;
-    explicit Node(Node<T,1>* parent = nullptr): parent(parent) {}
+    explicit Node(Node<T,1>* parent = nullptr): BaseNode<T>::parent(parent) {}
 
-    Node(size_t ind, Node<T,1>* parent = nullptr): parent(parent), ind(ind){}
+    Node(size_t ind, Node<T,1>* parent = nullptr): BaseNode<T>::parent(parent), BaseNode<T>::ind(ind){}
 
     Node(size_t ind, const Node& rhs, Node<T, 1>* parent = nullptr):
-        ind(ind), value(rhs.value), parent(parent){}
+        BaseNode<T>::ind(ind), value(rhs.value), BaseNode<T>::parent(parent){}
 
     Node(const T& val):value(val){}
 
-    Node<T,0>* next()
-    {
-        if(parent)
-        {
-            std::map<size_t, std::shared_ptr<Node<T,0>> >& brothers = parent->children;
-            auto lb = brothers.upper_bound(ind);
-            if(lb != brothers.end() )
-                return lb->second.get();
-            else
-            {
-                Node<T,1>* nextPa = parent->next();
-                if(nextPa && nextPa->children.size() > 0)
-                {
-                    return nextPa->children.begin()->second.get();
-                }
-            }
-        }
-        return nullptr;
-    }
+//    Node<T,0>* next()
+//    {
+//        if(parent)
+//        {
+//            std::map<size_t, std::shared_ptr<Node<T,0>> >& brothers = parent->children;
+//            auto lb = brothers.upper_bound(ind);
+//            if(lb != brothers.end() )
+//                return lb->second.get();
+//            else
+//            {
+//                Node<T,1>* nextPa = parent->next();
+//                if(nextPa && nextPa->children.size() > 0)
+//                {
+//                    return nextPa->children.begin()->second.get();
+//                }
+//            }
+//        }
+//        return nullptr;
+//    }
 
-    Node<T,0>* begin()
+    Node<T,0>* begin() override
     {
         return this;
     }
 
-    size_t size() const {return 1;}
+    size_t size() const override {return 1;}
 
-    size_t ind = 0;
+    //size_t ind = 0;
     T value;
-    Node<T,1>* parent = nullptr;
+    //Node<T,1>* parent = nullptr;
 };
 
 template<class T, size_t D>
@@ -152,7 +180,7 @@ struct MatrixIterator
 
     MatrixIterator& operator++() noexcept
     {
-        node = node->next();
+        node = static_cast<Node<T,0>*>(node->next() );
         return *this;
     }
 
@@ -194,11 +222,14 @@ public:
     {
         auto itr = m_node->children.find(ind);
         if(itr != m_node->children.end() )
-           return Matrix<T,D-1,DefaultValue>(itr->second);
+           return Matrix<T,D-1,DefaultValue>(std::dynamic_pointer_cast<internal::Node<T,D-1>>(itr->second) );
         else
         {
-            m_node->children.emplace(ind, std::make_shared<internal::Node<T,D-1>>(ind, m_node.get() ) );
-            return Matrix<T, D-1, DefaultValue>(m_node->children[ind]);
+//            m_node->children.emplace(ind, std::make_shared<internal::Node<T,D-1>>(ind, m_node.get() ) );
+//            return Matrix<T, D-1, DefaultValue>(m_node->children[ind]);
+            auto ptr = std::make_shared<internal::Node<T,D-1>>(ind, m_node.get() );
+            m_node->children.emplace(ind,ptr);
+            return Matrix<T, D-1, DefaultValue>(ptr);
         }
     }
 
@@ -240,7 +271,8 @@ public:
     {
         for(const auto& node : rhs.m_node->children)
             m_node->children.emplace(node.first,
-                            std::make_shared<internal::Node<T,0>>(*node.second) );
+                            //std::make_shared<internal::Node<T,0>>(*node.second) );
+           std::make_shared<internal::Node<T,0>>(*std::dynamic_pointer_cast<internal::Node<T,0>>(node.second) ) );
     }
 
     internal::MatrixIterator<T,1> begin()
@@ -260,7 +292,7 @@ public:
     {
         auto itr = m_node->children.find(ind);
         if(itr != m_node->children.end() )
-           return Matrix<T,0,DefaultValue>(itr->second);
+           return Matrix<T,0,DefaultValue>( std::dynamic_pointer_cast<internal::Node<T,0>>(itr->second) );
         else
         {
             return Matrix<T,0,DefaultValue>(m_node.get(), ind);
@@ -368,7 +400,8 @@ private:
     {}
 
     size_t m_ind = 0;
-    internal::Node<T,1>* m_parent = nullptr;
+    //internal::Node<T,1>* m_parent = nullptr;
+    internal::BaseNode<T>* m_parent = nullptr;
     NodeSh m_node = nullptr;
 };
 

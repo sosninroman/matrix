@@ -112,12 +112,13 @@ TEST(MATRIX_TEST, iterator_test)
     auto end = odmatrix.end();
     ASSERT_NE(itr, end);
     std::set<int> vals;
-//    while(itr != end)
-//    {
+    while(itr != end)
+    {
         vals.insert(*itr);
-//        ++itr;
-//    }
+        ++itr;
+    }
     ASSERT_TRUE(vals.find(5) != vals.end() );
-//    ASSERT_TRUE(vals.find(4) != vals.end() );
-//    ASSERT_TRUE(vals.find(9) != vals.end() );
+    ASSERT_TRUE(vals.find(4) != vals.end() );
+    ASSERT_TRUE(vals.find(9) != vals.end() );
+    ASSERT_TRUE(vals.find(0) == vals.end() );
 }
