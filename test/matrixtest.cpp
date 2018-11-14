@@ -134,3 +134,52 @@ TEST(MATRIX_TEST, iterator_test)
         int i = 1;
     }
 }
+
+TEST(MATRIX_TEST, const_matrix_test)
+{
+    matrix::Matrix<int,3> m;
+    m[1][1][1] = 7;
+    m[2][4][5] = 6;
+    m[0][0][0] = 9;
+
+    const matrix::Matrix<int,2> m2 = m[2];
+    int count = 0;
+    for(auto val : m2)
+    {
+        ++count;
+        int x,y,v;
+        std::tie(x,y,v) = val;
+        ASSERT_EQ(x,4);
+        ASSERT_EQ(y,5);
+        ASSERT_EQ(v,6);
+    }
+    ASSERT_EQ(count,1);
+    ASSERT_EQ(m2.size(), 1);
+    ASSERT_EQ(m2[4][5], 6);
+}
+
+TEST(MATRIX_TEST, const_iterator_test)
+{
+    matrix::Matrix<int,1> odmatrix;
+    odmatrix[1] = 5;
+    odmatrix[8] = 4;
+    odmatrix[2] = 9;
+    odmatrix[3] = 0;
+
+    const auto codmatrix = odmatrix;
+
+    std::set<int> vals;
+    for(auto val : codmatrix)
+    {
+        vals.insert(std::get<1>(val) );
+    }
+    ASSERT_TRUE(vals.find(5) != vals.end() );
+    ASSERT_TRUE(vals.find(4) != vals.end() );
+    ASSERT_TRUE(vals.find(9) != vals.end() );
+    ASSERT_TRUE(vals.find(0) == vals.end() );
+
+    int p, v;
+    std::tie(p,v) = codmatrix.begin();
+    ASSERT_EQ(p,1);
+    ASSERT_EQ(v,5);
+}

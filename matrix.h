@@ -63,7 +63,7 @@ struct BaseNode
     }
 
     virtual size_t size() const = 0;
-    virtual Node<T,0>* begin() = 0;
+    virtual Node<T,0>* firstChild() = 0;
 
     size_t ind;
     BaseNode* parent = nullptr;
@@ -77,11 +77,11 @@ struct Node : public BaseNode<T>
     explicit Node(size_t ind, Node<T,D+1>* parent = nullptr): BaseNode<T>(ind, parent){}
 
     Node(const Node& rhs, Node<T,D+1>* parent = nullptr):
-        BaseNode<T>::ind(rhs.ind), BaseNode<T>::parent(parent)
+        BaseNode<T>(rhs.ind, parent)
     {
         for(const auto& child : rhs.children)
         {
-            auto node = std::make_shared<Node<T, D-1>>(&child.second, this);
+            auto node = std::make_shared<Node<T, D-1>>(*child.second, this);
             BaseNode<T>::children.emplace(child.first, std::move(node) );
         }
     }
@@ -94,11 +94,11 @@ struct Node : public BaseNode<T>
         return result;
     }
 
-    Node<T,0>* begin() override
+    Node<T,0>* firstChild() override
     {
         if(!BaseNode<T>::children.empty() )
         {
-            return BaseNode<T>::children.begin()->second->begin();
+            return BaseNode<T>::children.begin()->second->firstChild();
         }
         return nullptr;
     }
@@ -112,14 +112,14 @@ struct Node<T, 0> : public BaseNode<T>
     Node() = default;
     explicit Node(Node<T,1>* parent = nullptr): BaseNode<T>::parent(parent) {}
 
-    Node(size_t ind, Node<T,1>* parent = nullptr): BaseNode<T>::parent(parent), BaseNode<T>::ind(ind){}
+    explicit Node(size_t ind, Node<T,1>* parent = nullptr): BaseNode<T>(ind, parent){}
 
     Node(size_t ind, const Node& rhs, Node<T, 1>* parent = nullptr):
         BaseNode<T>::ind(ind), value(rhs.value), BaseNode<T>::parent(parent){}
 
     Node(const T& val):value(val){}
 
-    Node<T,0>* begin() override
+    Node<T,0>* firstChild() override
     {
         return this;
     }
@@ -133,8 +133,9 @@ template<class T, size_t D>
 using NodeSh = std::shared_ptr<internal::Node<T,D>>;
 
 template<class T, size_t D>
-struct MatrixIterator
+class MatrixIterator
 {
+public:
     typedef std::bidirectional_iterator_tag iterator_category;
 
     MatrixIterator() = default;
@@ -150,7 +151,7 @@ struct MatrixIterator
         if(node)
         {
             BaseNode<T>* ptr = node;
-            for(int i = 0; i < D; ++i)
+            for(int i = D-1; i >= 0; --i)
             {
                 assert(ptr);
                 position[i] = ptr->ind;
@@ -166,16 +167,19 @@ struct MatrixIterator
         }
     }
 
-    //T& operator*() const noexcept
     auto operator*() const noexcept
     {
-        //return node->value;
         return std::tuple_cat(unpack(position), std::tie(node->value));
     }
 
     T* operator->() const noexcept
     {
         return &(node->value);
+    }
+
+    T& value() const noexcept
+    {
+        return node->value;
     }
 
     MatrixIterator& operator++() noexcept
@@ -206,6 +210,90 @@ struct MatrixIterator
     bool operator!=(const MatrixIterator& rhs) const noexcept
     { return node != rhs.node; }
 
+private:
+    Node<T,0>* node;
+    mutable std::array<int, D> position;
+};
+
+template<class T, size_t D>
+class ConstMatrixIterator
+{
+public:
+    typedef std::bidirectional_iterator_tag iterator_category;
+
+    ConstMatrixIterator() = default;
+
+    explicit ConstMatrixIterator(Node<T,0>* node) noexcept
+        : node(node)
+    {
+        recalcPosition();
+    }
+
+    void recalcPosition()
+    {
+        if(node)
+        {
+            BaseNode<T>* ptr = node;
+            for(int i = D-1; i >= 0; --i)
+            {
+                assert(ptr);
+                position[i] = ptr->ind;
+                ptr = ptr->parent;
+            }
+        }
+        else
+        {
+            for(int i = 0; i < D; ++i)
+            {
+                position[i] = 0;
+            }
+        }
+    }
+
+    auto operator*() const noexcept
+    {
+        return std::tuple_cat(unpack(position), std::tie(node->value));
+    }
+
+    const T* operator->() const noexcept
+    {
+        return &(node->value);
+    }
+
+    const T& value() const noexcept
+    {
+        return node->value;
+    }
+
+    ConstMatrixIterator& operator++() noexcept
+    {
+        node = static_cast<Node<T,0>*>(node->next() );
+        recalcPosition();
+        return *this;
+    }
+
+    ConstMatrixIterator operator++(int) noexcept
+    {
+        ConstMatrixIterator tmp = *this;
+        node = node->next();
+        recalcPosition();
+        return tmp;
+    }
+
+    template<class... Args>
+    operator std::tuple<Args...>()
+    {
+
+        return std::tuple_cat(unpack(position), std::tie(node->value));
+    }
+
+    bool operator==(const ConstMatrixIterator& rhs) const noexcept
+    { return node == rhs.node; }
+
+    bool operator!=(const ConstMatrixIterator& rhs) const noexcept
+    { return node != rhs.node; }
+
+private:
     Node<T,0>* node;
     mutable std::array<int, D> position;
 };
@@ -221,18 +309,33 @@ public:
         m_node = std::make_shared<internal::Node<T,D>>();
     }
 
-    Matrix(const Matrix& rhs)
+    Matrix(const Matrix& rhs):
+        m_node(std::dynamic_pointer_cast<internal::Node<T,D>>(rhs.m_node))
     {
-        for(const auto& node : rhs.m_node->children)
-            m_node->children.emplace(node.first,
-                            std::make_shared<internal::Node<T,D-1>>(*node.second) );
     }
 
     Matrix<T,D-1, DefaultValue> operator[](size_t ind)
     {
         auto itr = m_node->children.find(ind);
         if(itr != m_node->children.end() )
+        {
            return Matrix<T,D-1,DefaultValue>(std::dynamic_pointer_cast<internal::Node<T,D-1>>(itr->second) );
+        }
+        else
+        {
+            auto ptr = std::make_shared<internal::Node<T,D-1>>(ind, m_node.get() );
+            m_node->children.emplace(ind,ptr);
+            return Matrix<T, D-1, DefaultValue>(ptr);
+        }
+    }
+
+    const Matrix<T,D-1, DefaultValue> operator[](size_t ind) const
+    {
+        auto itr = m_node->children.find(ind);
+        if(itr != m_node->children.end() )
+        {
+           return Matrix<T,D-1,DefaultValue>(std::dynamic_pointer_cast<internal::Node<T,D-1>>(itr->second) );
+        }
         else
         {
             auto ptr = std::make_shared<internal::Node<T,D-1>>(ind, m_node.get() );
@@ -244,7 +347,7 @@ public:
     internal::MatrixIterator<T,D> begin()
     {
         if(m_node)
-            return internal::MatrixIterator<T,D>(m_node->begin() );
+            return internal::MatrixIterator<T,D>(m_node->firstChild() );
         else
             return internal::MatrixIterator<T,D>();
     }
@@ -252,6 +355,19 @@ public:
     internal::MatrixIterator<T,D> end()
     {
         return internal::MatrixIterator<T,D>();
+    }
+
+    internal::ConstMatrixIterator<T,D> begin() const
+    {
+        if(m_node)
+            return internal::ConstMatrixIterator<T,D>(m_node->firstChild() );
+        else
+            return internal::ConstMatrixIterator<T,D>();
+    }
+
+    internal::ConstMatrixIterator<T,D> end() const
+    {
+        return internal::ConstMatrixIterator<T,D>();
     }
 
     size_t size() const
@@ -275,17 +391,15 @@ public:
         m_node = std::make_shared<internal::Node<T,1>>();
     }
 
-    Matrix(const Matrix& rhs)
+    Matrix(const Matrix& rhs):
+        m_node(std::dynamic_pointer_cast<internal::Node<T,1>>(rhs.m_node))
     {
-        for(const auto& node : rhs.m_node->children)
-            m_node->children.emplace(node.first,
-                std::make_shared<internal::Node<T,0>>(*std::dynamic_pointer_cast<internal::Node<T,0>>(node.second) ) );
     }
 
     internal::MatrixIterator<T,1> begin()
     {
         if(m_node)
-            return internal::MatrixIterator<T,1>(m_node->begin() );
+            return internal::MatrixIterator<T,1>(m_node->firstChild() );
         else
             return internal::MatrixIterator<T,1>();
     }
@@ -295,7 +409,31 @@ public:
         return internal::MatrixIterator<T,1>();
     }
 
+    internal::ConstMatrixIterator<T,1> begin() const
+    {
+        if(m_node)
+            return internal::ConstMatrixIterator<T,1>(m_node->firstChild() );
+        else
+            return internal::ConstMatrixIterator<T,1>();
+    }
+
+    internal::ConstMatrixIterator<T,1> end() const
+    {
+        return internal::ConstMatrixIterator<T,1>();
+    }
+
     Matrix<T,0, DefaultValue> operator[](size_t ind)
+    {
+        auto itr = m_node->children.find(ind);
+        if(itr != m_node->children.end() )
+           return Matrix<T,0,DefaultValue>( std::dynamic_pointer_cast<internal::Node<T,0>>(itr->second) );
+        else
+        {
+            return Matrix<T,0,DefaultValue>(m_node.get(), ind);
+        }
+    }
+
+    const Matrix<T,0, DefaultValue> operator[](size_t ind) const
     {
         auto itr = m_node->children.find(ind);
         if(itr != m_node->children.end() )
@@ -334,7 +472,7 @@ public:
     {
         if(m_node)
         {
-            internal::Node<T,0>* n = m_node->begin();
+            internal::Node<T,0>* n = m_node->firstChild();
             return internal::MatrixIterator<T,0>(n);
         }
         else
