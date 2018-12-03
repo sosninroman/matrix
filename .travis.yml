@@ -1,0 +1,21 @@
+language: cpp
+compiler: gcc
+
+before_install:
+  - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+  - sudo apt-get update -qq
+  
+install: 
+  - sudo apt-get install -qq g++-6
+  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-6 90
+
+script:
+  - cmake .
+  - cmake --build .
+  - cmake --build . --target test
+  - cmake --build . --target package
+deploy:
+  provider: script
+  skip_cleanup: true
+  script:
+  - curl -T matrix-0.0.$TRAVIS_BUILD_NUMBER-Linux.deb -u$USER_NAME:$BINTRAY_API_KEY "https://api.bintray.com/content/sosninroman/$BINTRAY_REPO_NAME/$BINTRAY_PACK_NAME/$TRAVIS_BUILD_NUMBER/matrix-0.0.$TRAVIS_BUILD_NUMBER-Linux.deb;deb_distribution=trusty;deb_component=main;deb_architecture=amd64;publish=1"
