@@ -160,7 +160,7 @@ public:
         }
         else
         {
-            for(int i = 0; i < D; ++i)
+            for(size_t i = 0; i < D; ++i)
             {
                 position[i] = 0;
             }
